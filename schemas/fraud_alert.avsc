@@ -1,0 +1,36 @@
+{
+  "namespace": "com.fraudplatform.events",
+  "type": "record",
+  "name": "FraudAlert",
+  "doc": "Fraud alert emitted by the Spark detection engine.",
+  "fields": [
+    {"name": "alert_id",   "type": "string", "doc": "UUID v4 alert identifier"},
+    {"name": "txn_id",     "type": "string", "doc": "transaction_id that triggered the alert"},
+    {"name": "card_id",    "type": "string"},
+    {"name": "user_id",    "type": "string"},
+    {
+      "name": "fraud_type",
+      "type": {
+        "type": "enum",
+        "name": "FraudType",
+        "namespace": "com.fraudplatform.events",
+        "symbols": ["VELOCITY", "DEVIATION", "BLACKLIST_HIT", "COMPOSITE"]
+      }
+    },
+    {"name": "risk_score", "type": "double", "doc": "Normalized risk score from 0.0 (safe) to 1.0 (certain fraud)"},
+    {
+      "name": "severity",
+      "type": {
+        "type": "enum",
+        "name": "AlertSeverity",
+        "namespace": "com.fraudplatform.events",
+        "symbols": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+      }
+    },
+    {"name": "recommendation", "type": "string", "doc": "Block | Challenge | Monitor | Allow"},
+    {"name": "trigger_reason", "type": "string", "doc": "Human-readable explanation of why the alert was raised"},
+    {"name": "window_start",   "type": ["null", "long"], "default": null, "doc": "Window start epoch ms (velocity alerts only)"},
+    {"name": "window_end",     "type": ["null", "long"], "default": null, "doc": "Window end epoch ms (velocity alerts only)"},
+    {"name": "triggered_at",   "type": "long", "doc": "Epoch milliseconds when the alert was generated"}
+  ]
+}

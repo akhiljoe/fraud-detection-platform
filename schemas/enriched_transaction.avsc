@@ -1,0 +1,39 @@
+{
+  "namespace": "com.fraudplatform.events",
+  "type": "record",
+  "name": "EnrichedTransaction",
+  "doc": "Transaction event augmented with Redis behavioral features.",
+  "fields": [
+    {"name": "transaction_id", "type": "string"},
+    {"name": "card_id",        "type": "string"},
+    {"name": "user_id",        "type": "string"},
+    {"name": "amount",         "type": "double"},
+    {"name": "merchant_id",    "type": "string"},
+    {"name": "merchant_name",  "type": "string"},
+    {"name": "merchant_cat",   "type": "string"},
+    {
+      "name": "location",
+      "type": {
+        "type": "record",
+        "name": "GeoPoint",
+        "namespace": "com.fraudplatform.events",
+        "fields": [
+          {"name": "lat", "type": "double"},
+          {"name": "lon", "type": "double"}
+        ]
+      }
+    },
+    {"name": "country",    "type": "string"},
+    {"name": "timestamp",  "type": "long"},
+    {"name": "is_online",  "type": "boolean"},
+    {"name": "device_id",  "type": ["null", "string"], "default": null},
+    {"name": "velocity_1m",             "type": "int",    "default": 0,    "doc": "Transaction count for this card in the last 60 seconds"},
+    {"name": "velocity_5m",             "type": "int",    "default": 0,    "doc": "Transaction count for this card in the last 5 minutes"},
+    {"name": "avg_amount_30d",          "type": "double", "default": 85.0, "doc": "30-day rolling average transaction amount"},
+    {"name": "stddev_amount_30d",       "type": "double", "default": 42.0, "doc": "30-day rolling standard deviation of transaction amount"},
+    {"name": "is_blacklisted_card",     "type": "boolean","default": false, "doc": "True if card is on the Redis blacklist"},
+    {"name": "is_blacklisted_ip",       "type": "boolean","default": false, "doc": "True if device IP is in the Bloom filter blacklist"},
+    {"name": "is_enrichment_degraded",  "type": "boolean","default": false, "doc": "True if Redis was unavailable; enrichment used defaults"},
+    {"name": "enrichment_ts",           "type": "long",   "default": 0,    "doc": "Epoch milliseconds when enrichment was applied"}
+  ]
+}

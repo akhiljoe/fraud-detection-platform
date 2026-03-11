@@ -20,6 +20,7 @@ A real-time fraud detection platform built on Kafka (KRaft), Apache Spark, Redis
 - [Project Structure](#project-structure)
 - [Day-to-Day Operations](#day-to-day-operations)
 - [Troubleshooting](#troubleshooting)
+- [Build Progress](#build-progress)
 
 ---
 
@@ -417,4 +418,112 @@ If Spark workers are the culprit, temporarily lower `SPARK_WORKER_MEMORY` from `
 
 ---
 
-*Platform built for local development. Not hardened for production.*
+## Build Progress
+
+Track which phases are complete, what was built, and any deviations or issues resolved during implementation.
+
+---
+
+### ✅ Phase 1 — Environment & Docker Foundation
+
+**Status:** Complete
+
+**What was built:**
+- `docker/docker-compose.yml` — 13 services, resource limits, health checks, named volumes
+- `.env` — all credentials and config vars
+- `scripts/init_platform.sh` — creates 5 Kafka topics with correct partition/retention config
+- `scripts/health_check.sh` — checks every service, exits 0/1
+- Full directory scaffold for all subsequent phases
+
+**Deviations from playbook:**
+
+| Item | Planned | Actual | Reason |
+|------|---------|--------|--------|
+| Spark image | `bitnami/spark:3.4.2` | `spark:3.5.7-java17-python3` | Bitnami removed all versioned tags from Docker Hub in late 2024 |
+| Kafka JMX | Enabled on port 9101 | Disabled | `cp-kafka:7.6.1` crashes on startup without a `jmxremote.password` file; JMX will be re-added in Phase 11 via the jmx_prometheus_javaagent sidecar |
+
+---
+
+### ✅ Phase 2 — Schema Registry & Avro Schemas
+
+**Status:** Complete
+
+**What was built:**
+- `schemas/transaction_event.avsc` — raw transaction Avro schema
+- `schemas/enriched_transaction.avsc` — enriched transaction schema with velocity and stats fields
+- `schemas/fraud_alert.avsc` — fraud alert schema with FraudType and AlertSeverity enums
+- `schemas/schema_registry_setup.py` — idempotent setup script; registers, skips unchanged, and guards against incompatible changes
+- `schemas/client.py` — cached `AvroSerializer`/`AvroDeserializer` factory + `SchemaClient` convenience class
+- `schemas/requirements.txt`
+- `schemas/test_evolution.py` — 5 schema evolution tests
+
+**Verification:**
+```bash
+# All three subjects registered
+curl -s http://localhost:8081/subjects
+# ["fraud.alerts-value","transactions.enriched-value","transactions.raw-value"]
+
+# Idempotency confirmed — re-running setup prints SKIP for all three subjects
+SCHEMA_REGISTRY_URL=http://localhost:8081 python3 schemas/schema_registry_setup.py
+
+# All 5 tests passing
+SCHEMA_REGISTRY_URL=http://localhost:8081 python3 -m pytest schemas/test_evolution.py -v
+```
+
+**Issues resolved during implementation:**
+
+**1. `python` command not found**
+Ubuntu 22.04 ships Python 3 but does not alias `python` to `python3` by default.
+```bash
+# Fix — install the alias package
+sudo apt install python-is-python3
+# Or just use python3 explicitly for all commands
+```
+
+**2. `pytest` not found / wrong version via apt**
+Installing pytest via `apt install python3-pytest` gives an outdated version and the wrong binary path.
+```bash
+# Correct approach — install via pip, run via python module flag
+pip3 install pytest --break-system-packages
+python3 -m pytest schemas/test_evolution.py -v
+```
+
+**3. `pip` blocked by externally-managed-environment**
+Ubuntu 22.04+ blocks system-wide pip installs by default (PEP 668). The fix is to pass `--break-system-packages` on a dev machine rather than creating a virtual environment.
+```bash
+pip3 install pytest fastavro requests python-dotenv "confluent-kafka[avro]==2.3.0" --break-system-packages
+```
+
+**4. Incorrect test for BACKWARD compatibility violation**
+The original test `test_removing_a_field_is_not_backward_compatible` asserted that *removing* a field breaks BACKWARD compatibility — but this is wrong. Under Avro BACKWARD rules, removing a field is fine (the new reader ignores the extra data in old messages). The test was corrected to assert that *adding a required field with no default* is what breaks BACKWARD compatibility, since old messages won't have that field and the new reader has no default to fall back on.
+
+| Schema change | BACKWARD compatible? |
+|---|---|
+| Add field **with** default | ✅ Yes |
+| Add field **without** default | ❌ No — breaks BACKWARD |
+| Remove field with default | ✅ Yes |
+| Remove field without default | ✅ Yes (for BACKWARD) |
+
+
+**✅ Phase 3 — Redis Feature Store**
+**Status:** Complete
+**What was built:**
+
+- `consumers/redis_client.py` — RedisFeatureStore class with velocity tracking, card stats, blacklist, and single-pipeline enrich_transaction() method. Circuit breaker via pybreaker (5 failures → open, 30s recovery)
+- `consumers/bloom_filter.py` — pure-Python Bloom filter (mmh3 + bitarray) stored as a Redis binary blob at bloom:ips
+- `db/seeds/seed_blacklist.py` — seeds 1000 blacklisted cards + 10K IPs into Bloom filter
+- `db/seeds/seed_user_statistics.py` — seeds realistic avg/std/count stats for 100K cards
+- `tests/unit/test_redis_client.py` — 18 unit tests using fakeredis, no real Redis needed
+
+**Verification results:**
+
+blacklist:cards → 1000 members ✅
+stats:CARD_0000001 → avg/std/count populated ✅
+bloom:ips → exists ✅
+100K cards seeded in 2.4s, 28.9MB Redis memory ✅
+18/18 tests passed ✅
+
+**Notes:**
+
+pybreaker emits DeprecationWarning for datetime.utcnow() — this is inside the library itself and does not affect functionality
+Bloom filter bit array is 95.8M bits (~11.4MB) for 10M IP capacity at 1% false positive rate
