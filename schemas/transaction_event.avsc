@@ -1,0 +1,32 @@
+{
+  "namespace": "com.fraudplatform.events",
+  "type": "record",
+  "name": "TransactionEvent",
+  "doc": "Raw transaction event published by card processing systems.",
+  "fields": [
+    {"name": "transaction_id", "type": "string",  "doc": "UUID v4 transaction identifier"},
+    {"name": "card_id",        "type": "string",  "doc": "Card identifier — used as Kafka partition key"},
+    {"name": "user_id",        "type": "string",  "doc": "Account holder identifier"},
+    {"name": "amount",         "type": "double",  "doc": "Transaction amount in USD"},
+    {"name": "merchant_id",    "type": "string",  "doc": "Merchant identifier"},
+    {"name": "merchant_name",  "type": "string",  "doc": "Human-readable merchant name"},
+    {"name": "merchant_cat",   "type": "string",  "doc": "ISO 18245 Merchant Category Code (MCC)"},
+    {
+      "name": "location",
+      "type": {
+        "type": "record",
+        "name": "GeoPoint",
+        "namespace": "com.fraudplatform.events",
+        "fields": [
+          {"name": "lat", "type": "double", "doc": "Latitude"},
+          {"name": "lon", "type": "double", "doc": "Longitude"}
+        ]
+      },
+      "doc": "Geographic coordinates of the transaction"
+    },
+    {"name": "country",    "type": "string",  "doc": "ISO 3166-1 alpha-2 country code"},
+    {"name": "timestamp",  "type": "long",    "doc": "Event time in epoch milliseconds"},
+    {"name": "is_online",  "type": "boolean", "doc": "True if card-not-present / e-commerce transaction"},
+    {"name": "device_id",  "type": ["null", "string"], "default": null, "doc": "Device fingerprint — null for in-person transactions"}
+  ]
+}
