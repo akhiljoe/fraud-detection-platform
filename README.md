@@ -267,6 +267,18 @@ fraud-detection-platform/
 ## Day-to-Day Operations
 
 ```bash
+# Start everything
+docker compose up -d
+
+# health checkup after 30 secs
+watch -n3 "docker compose ps --format 'table {{.Name}}\t{{.Status}}'"
+
+# Stop without deleting volumes
+docker compose stop
+
+# Destroy everything including volumes (data loss!)
+docker compose down -v
+
 # Tail logs for a service
 docker compose logs -f kafka1
 
